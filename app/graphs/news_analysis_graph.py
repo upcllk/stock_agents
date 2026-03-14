@@ -9,7 +9,7 @@ from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from config.settings import QWEN_MODEL
-from app.services.analysis.base import EventAnalysis
+from app.services.analysis.base import EventAnalysis, ANALYSIS_SYSTEM_PROMPT
 from app.schemas.analysis import EventAnalysisSchema
 from app.utils.json_util import safe_json_loads
 
@@ -32,16 +32,7 @@ def _analysis_node(state: NewsAnalysisState, *, llm: ChatOpenAI) -> dict[str, An
     try:
         resp = llm.invoke(
             [
-                SystemMessage(
-                    content=(
-                        "你是股票事件分析助手。任务：分析下面新闻对股价的影响。\n\n"
-                        "只输出一个 JSON 对象，不要输出任何额外文本、markdown 或说明。格式：\n"
-                        '{"event_type":"", "impact_direction":"", "impact_strength":1-5, "impact_horizon":"", "confidence":0-1, "reasoning":""}\n\n'
-                        "约束：event_type 可选 earnings, product, order, policy, management, risk, other；"
-                        "impact_direction 可选 bullish, bearish, neutral；"
-                        "impact_horizon 可选 short_term, mid_term, long_term。"
-                    )
-                ),
+                SystemMessage(content=ANALYSIS_SYSTEM_PROMPT),
                 HumanMessage(content=news_text),
             ]
         )

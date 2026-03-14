@@ -9,8 +9,8 @@ from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from config.settings import SEARCH_PROVIDER, QWEN_MODEL
-from app.services.search.base import NewsItem, SEARCH_RAW_PROMPT_TEMPLATE
-from app.services.parse.base import PARSE_NEWS_PROMPT_TEMPLATE
+from app.services.search.base import NewsItem, SEARCH_SYSTEM_PROMPT
+from app.services.parse.base import PARSE_SYSTEM_PROMPT
 from app.schemas.news import NewsListSchema
 from app.utils.json_util import safe_json_loads
 
@@ -39,12 +39,11 @@ def _search_node(state: NewsSearchState, *, llm: ChatOpenAI) -> dict[str, Any]:
     company = (state.get("company") or "").strip()
     if not company:
         return {"raw_search_output": ""}
-    prompt = SEARCH_RAW_PROMPT_TEMPLATE.format(company=company)
     try:
         resp = llm.invoke(
             [
-                SystemMessage(content="你是金融研究助手。用清晰可读的文本列出新闻，每条包含标题、来源、日期、链接、摘要。"),
-                HumanMessage(content=prompt),
+                SystemMessage(content=SEARCH_SYSTEM_PROMPT),
+                HumanMessage(content=company),
             ]
         )
         content = getattr(resp, "content", None) or ""
@@ -60,12 +59,11 @@ def _parse_node(state: NewsSearchState, *, llm: ChatOpenAI) -> dict[str, Any]:
     raw = (state.get("raw_search_output") or "").strip()
     if not raw:
         return {"news_items": []}
-    prompt = PARSE_NEWS_PROMPT_TEMPLATE.format(raw_text=raw)
     try:
         resp = llm.invoke(
             [
-                SystemMessage(content="你是信息抽取助手。只输出一个 JSON 对象，格式为 {\"items\": [{\"title\": \"新闻标题\", \"source\": \"新闻来源\", \"date\": \"发布日期\", \"url\": \"链接地址\", \"summary\": \"新闻摘要\"}]}，不要输出任何额外文本、markdown 或说明。"),
-                HumanMessage(content=prompt),
+                SystemMessage(content=PARSE_SYSTEM_PROMPT),
+                HumanMessage(content=raw),
             ]
         )
         content = getattr(resp, "content", None) or ""

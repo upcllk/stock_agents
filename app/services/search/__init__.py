@@ -3,7 +3,7 @@ import os
 
 from config.settings import SEARCH_PROVIDER
 
-from app.services.search.base import NewsItem, SearchService, SEARCH_PROMPT_TEMPLATE
+from app.services.search.base import NewsItem, SearchService, SEARCH_PROMPT_TEMPLATE, SEARCH_SYSTEM_PROMPT
 from app.services.search.deepseek import DeepSeekSearchService
 from app.services.search.mock import MockSearchService
 from app.services.search.qwen import QwenSearchService
@@ -26,6 +26,7 @@ __all__ = [
     "NewsItem",
     "SearchService",
     "SEARCH_PROMPT_TEMPLATE",
+    "SEARCH_SYSTEM_PROMPT",
     "MockSearchService",
     "DeepSeekSearchService",
     "QwenSearchService",

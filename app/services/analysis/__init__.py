@@ -1,6 +1,7 @@
 """分析服务：新闻 → 事件结构化。"""
 from app.services.analysis.base import (
     ANALYSIS_PROMPT_TEMPLATE,
+    ANALYSIS_SYSTEM_PROMPT,
     EventAnalysis,
     AnalysisService,
 )
@@ -16,6 +17,7 @@ __all__ = [
     "EventAnalysis",
     "AnalysisService",
     "ANALYSIS_PROMPT_TEMPLATE",
+    "ANALYSIS_SYSTEM_PROMPT",
     "MockAnalysisService",
     "get_analysis_service",
 ]

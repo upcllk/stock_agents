@@ -3,7 +3,7 @@ import os
 
 from config.settings import SEARCH_PROVIDER
 
-from app.services.parse.base import ParseService, PARSE_NEWS_PROMPT_TEMPLATE
+from app.services.parse.base import ParseService, PARSE_NEWS_PROMPT_TEMPLATE, PARSE_SYSTEM_PROMPT
 from app.services.parse.deepseek import DeepSeekParseService
 from app.services.parse.mock import MockParseService
 
@@ -19,6 +19,7 @@ def get_parse_service() -> ParseService:
 __all__ = [
     "ParseService",
     "PARSE_NEWS_PROMPT_TEMPLATE",
+    "PARSE_SYSTEM_PROMPT",
     "MockParseService",
     "DeepSeekParseService",
     "get_parse_service",

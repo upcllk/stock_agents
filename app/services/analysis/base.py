@@ -3,6 +3,33 @@ from dataclasses import dataclass
 from typing import Protocol, runtime_checkable
 
 
+# 分析节点 System 提示（HumanMessage 仅传新闻文本，供 LangGraph 等使用）
+ANALYSIS_SYSTEM_PROMPT = """你是股票事件分析助手。
+
+任务：
+分析下面新闻对股价的影响。
+
+只输出一个 JSON 对象，不要输出任何额外文本、markdown 或说明。
+
+返回JSON：
+
+{
+"event_type":"",
+"impact_direction":"",
+"impact_strength":1-5,
+"impact_horizon":"",
+"confidence":0-1,
+"reasoning":""
+}
+
+event_type可选：
+earnings product order policy management risk other
+
+impact_direction：bullish bearish neutral
+
+impact_horizon：short_term mid_term long_term
+"""
+
 # 真实实现时用此 prompt 调用 LLM（plans/agent1.md Step2）
 ANALYSIS_PROMPT_TEMPLATE = """你是股票事件分析助手。
 
