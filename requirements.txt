@@ -8,5 +8,12 @@ APScheduler>=3.10.0
 python-dotenv>=1.0.0
 
 # LLM 调用（按实际使用的 API 二选一或都装）
-# openai>=1.0.0
+openai>=1.0.0
 # httpx>=0.27.0
+
+# Pydantic（数据验证）
+pydantic>=2.0.0
+
+# LangGraph（搜索→解析图）
+langgraph>=0.2.0
+langchain-openai>=0.2.0

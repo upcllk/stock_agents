@@ -3,7 +3,20 @@ from dataclasses import dataclass
 from typing import Protocol, runtime_checkable
 
 
-# 真实实现时用此 prompt 调用 LLM 联网搜索并解析返回的 JSON（plans/agent1.md Step1）
+# 仅出 raw 文本的搜索 prompt（不要求 JSON，供两段式 搜索→解析 使用）
+SEARCH_RAW_PROMPT_TEMPLATE = """你是金融研究助手。
+
+任务：
+搜索最近24小时关于公司 "{company}" 的重要新闻。
+
+要求：
+1 只关注对股价可能有影响的信息
+2 忽略无关媒体报道
+3 最多10条
+4 用清晰可读的文本列出，每条包含：标题、来源、日期、链接、摘要。不必输出 JSON，自然段或列表即可。
+"""
+
+# 旧版单步「搜索+JSON」用（可保留作参考）
 SEARCH_PROMPT_TEMPLATE = """你是金融研究助手。
 
 任务：

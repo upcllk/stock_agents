@@ -104,7 +104,7 @@ command -v psql >/dev/null && psql --version && pg_isready -h localhost || echo 
 pip install -r requirements.txt
 ```
 
-会安装：`psycopg2-binary`（PostgreSQL）、`APScheduler`（定时任务）、`python-dotenv`（配置）。LLM 相关依赖在 `requirements.txt` 中已注释，按需取消注释后再次执行上述命令。
+会安装：`psycopg2-binary`（PostgreSQL）、`APScheduler`（定时任务）、`python-dotenv`（配置）、`openai`（LLM 调用）、`pydantic`（数据验证）、`langgraph` 与 `langchain-openai`（搜索→解析图，DeepSeek 路径使用）。
 
 ### 安装与启动（完整步骤）
 
@@ -151,11 +151,16 @@ stock_agents/
 ├── app/                    # 应用主包
 │   ├── agents/             # Agent 层：串联业务流程（规划）
 │   │   └── news_agent.py   # 核心 Agent：拉取公司列表 → 搜索 → 去重 → 分析 → 入库
+│   ├── graphs/             # LangGraph 图（搜索→解析等）
+│   │   └── news_search_graph.py  # 搜索节点 → 解析节点，DeepSeek / 通义千问路径由此图驱动
+│   ├── schemas/            # Pydantic 模型（数据验证 schema）
+│   │   └── news.py         # NewsItemSchema、NewsListSchema
 │   ├── services/           # 业务服务层（每类服务一个子包：base + mock + 具体实现）
 │   │   ├── search/         # 搜索：base、mock、deepseek 等
 │   │   │   ├── base.py     # NewsItem、SearchService 协议、Prompt 模板
 │   │   │   ├── mock.py     # MockSearchService
-│   │   │   └── deepseek.py # DeepSeekSearchService（占位）
+│   │   │   ├── deepseek.py # DeepSeekSearchService（委托 graphs 中的搜索→解析图；需 DEEPSEEK_API_KEY）
+│   │   │   └── qwen.py     # QwenSearchService（通义千问；需 DASHSCOPE_API_KEY）
 │   │   ├── analysis/       # 分析：base、mock
 │   │   │   ├── base.py     # EventAnalysis、AnalysisService 协议
 │   │   │   └── mock.py     # MockAnalysisService
@@ -170,15 +175,16 @@ stock_agents/
 │   │   └── database.py     # PostgreSQL 连接与会话管理
 │   ├── scheduler/          # 定时任务（规划）
 │   │   └── job_runner.py   # APScheduler 配置与调度
-│   └── utils/              # 通用工具（规划）
-│       ├── hash_util.py    # 新闻去重 hash
-│       └── logger.py       # 统一日志
+│   └── utils/              # 通用工具
+│       ├── json_util.py    # JSON 解析（兼容 markdown 包裹等）
+│       ├── hash_util.py    # 新闻去重 hash（规划）
+│       └── logger.py       # 统一日志（规划）
 ├── scripts/
 │   ├── init_db.sql         # 建表脚本：company_watchlist、news_event、event_analysis、news_hash
 │   ├── check_db.py         # 验证数据库连接
 │   └── check_search.py     # 验证 search 服务（mock/deepseek）
 ├── config/
-│   └── settings.py         # 配置：DATABASE_URL、SEARCH_PROVIDER、DEEPSEEK_API_KEY 等
+│   └── settings.py         # 配置：DATABASE_URL、SEARCH_PROVIDER、DEEPSEEK_API_KEY、DASHSCOPE_API_KEY、QWEN_MODEL 等
 ├── main.py                 # 入口：启动调度或单次跑批
 ├── requirements.txt        # Python 依赖
 └── plans/
@@ -190,7 +196,9 @@ stock_agents/
 | 目录/文件 | 职责 |
 |-----------|------|
 | **app/agents/** | 编排流程：拿公司列表 → 调 search → 去重 → 调 analysis → 写库 |
-| **app/services/search/** | LLM 联网搜索：输入公司名，输出新闻列表。实现：mock（默认）、deepseek（占位） |
+| **app/graphs/** | LangGraph 图：搜索节点 → 解析节点（DeepSeek / 通义千问路径使用，降低 JSON 解析错误） |
+| **app/schemas/** | Pydantic 模型：NewsItemSchema、NewsListSchema 等数据验证 schema |
+| **app/services/search/** | LLM 联网搜索：输入公司名，输出新闻列表。实现：mock（默认）、deepseek（需 DEEPSEEK_API_KEY）、qwen（通义千问，需 DASHSCOPE_API_KEY；可选 QWEN_MODEL） |
 | **app/services/analysis/** | 新闻 → 事件结构化分析（event_type、impact_direction 等）。实现：mock |
 | **app/services/storage/** | 新闻与事件分析落库、基于 hash 去重。实现：mock、postgres（默认） |
 | **app/services/report/** | 按日/按公司生成动态报告。实现：mock |
@@ -211,6 +219,6 @@ python scripts/check_search.py
 ```
 
 - **成功**：打印当前 `SEARCH_PROVIDER`、`search_news('Tesla')` 返回条数及前几条的 title/source/date。
-- **失败**：打印调用失败原因。未配置真实 API 时使用 `SEARCH_PROVIDER=mock`（默认）即可。
+- **失败**：打印调用失败原因。未配置真实 API 时使用 `SEARCH_PROVIDER=mock`（默认）即可。使用 DeepSeek 时需设置 `SEARCH_PROVIDER=deepseek` 和 `DEEPSEEK_API_KEY`；使用通义千问时需设置 `SEARCH_PROVIDER=qwen` 和 `DASHSCOPE_API_KEY`（可选 `QWEN_MODEL`）。
 
 更细的流程与表结构、Prompt 设计见 [plans/agent1.md](plans/agent1.md)。

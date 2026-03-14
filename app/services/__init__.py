@@ -1,8 +1,12 @@
-"""业务服务层：搜索、分析、存储、报告。"""
+"""业务服务层：搜索、解析、分析、存储、报告。"""
 from app.services.search import (
     NewsItem,
     SearchService,
     get_search_service,
+)
+from app.services.parse import (
+    ParseService,
+    get_parse_service,
 )
 from app.services.analysis import (
     EventAnalysis,
@@ -22,6 +26,8 @@ __all__ = [
     "NewsItem",
     "SearchService",
     "get_search_service",
+    "ParseService",
+    "get_parse_service",
     "EventAnalysis",
     "AnalysisService",
     "get_analysis_service",
