@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, TypedDict
+from typing import Any, NotRequired, TypedDict
 
 from langgraph.graph import END, START, StateGraph
 from langchain_openai import ChatOpenAI
@@ -11,7 +11,8 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from config.settings import NEWS_SEARCH_MAX_ITEMS, SEARCH_PROVIDER, QWEN_MODEL
 from app.services.search.base import NewsItem, SEARCH_SYSTEM_PROMPT
 from app.services.parse.base import PARSE_SYSTEM_PROMPT
-from app.schemas.news import NewsListSchema
+from app.schemas.news import NewsItemSchema, NewsListSchema
+from app.tools.batch_save_news import batch_save_news
 from app.utils.json_util import safe_json_loads
 
 # 一个 provider 对应一套 base_url + model
@@ -28,10 +29,11 @@ LLM_PROVIDER_CONFIG: dict[str, dict[str, str]] = {
 
 
 class NewsSearchState(TypedDict):
-    """图状态：公司名、raw 搜索输出、解析后的新闻列表（dict 列表便于 state 传递）。"""
+    """图状态：公司名、raw 搜索输出、解析后的新闻列表；可选 ticker 有则 parse 后保存到 DB。"""
     company: str
     raw_search_output: str
     news_items: list[dict]
+    ticker: NotRequired[str]
 
 
 def _search_node(state: NewsSearchState, *, llm: ChatOpenAI) -> dict[str, Any]:
@@ -119,6 +121,32 @@ def _as_str(v: Any) -> str:
     return str(v)
 
 
+def _save_node(state: NewsSearchState) -> dict[str, Any]:
+    """保存节点：若有 ticker 且 news_items 非空，将 news_items 转成 NewsListSchema 后调用 batch_save_news 落库。"""
+    ticker = (state.get("ticker") or "PLACEHOLDER").strip()
+    items = state.get("news_items") or []
+    if not ticker or not items:
+        return {}
+    try:
+        news_list = NewsListSchema(
+            items=[
+                NewsItemSchema(
+                    title=_as_str(d.get("title", "")),
+                    source=_as_str(d.get("source", "")),
+                    date=_as_str(d.get("date", "")),
+                    url=_as_str(d.get("url", "")),
+                    summary=_as_str(d.get("summary", "")),
+                )
+                for d in items
+                if isinstance(d, dict)
+            ]
+        )
+        batch_save_news(ticker, news_list, None)
+    except Exception as e:
+        logging.getLogger(__name__).warning("保存节点 batch_save_news 失败: %s", e)
+    return {}
+
+
 def _build_graph(api_key: str) -> StateGraph:
     """构建图（供 invoke 使用）。base_url 与 model 由 SEARCH_PROVIDER + LLM_PROVIDER_CONFIG 解析。"""
     config = LLM_PROVIDER_CONFIG.get(SEARCH_PROVIDER) or LLM_PROVIDER_CONFIG["deepseek"]
@@ -142,29 +170,39 @@ def _build_graph(api_key: str) -> StateGraph:
 
     builder.add_node("search", search_node)
     builder.add_node("parse", parse_node)
+    builder.add_node("save", _save_node)
     builder.add_edge(START, "search")
     builder.add_edge("search", "parse")
-    builder.add_edge("parse", END)
+    builder.add_edge("parse", "save")
+    builder.add_edge("save", END)
     return builder
 
 
-def invoke_news_search(company: str, api_key: str | None = None) -> list[NewsItem]:
+def invoke_news_search(
+    company: str,
+    api_key: str | None = None,
+    ticker: str | None = None,
+) -> list[NewsItem]:
     """
     执行搜索→解析图，返回 list[NewsItem]。
     api_key 为空时返回空列表（不建图、不调 API）。
+    ticker 不为空时，parse 后会调用 batch_save_news 将新闻写入数据库。
     """
     if not (api_key or "").strip():
         return []
     company = (company or "").strip()
     if not company:
         return []
+    initial: dict[str, Any] = {
+        "company": company,
+        "raw_search_output": "",
+        "news_items": [],
+    }
+    if (ticker or "").strip():
+        initial["ticker"] = ticker.strip()
     try:
         graph = _build_graph(api_key=api_key).compile()
-        result = graph.invoke({
-            "company": company,
-            "raw_search_output": "",
-            "news_items": [],
-        })
+        result = graph.invoke(initial)
     except Exception as e:
         logging.getLogger(__name__).warning("invoke_news_search 图执行失败: %s", e)
         return []
