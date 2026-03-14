@@ -14,5 +14,9 @@ load_dotenv(ROOT / ".env")
 # 本机默认无密码示例：postgresql://当前系统用户名@localhost:5432/stock_agents
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://localhost:5432/stock_agents")
 
+# 搜索服务：mock | perplexity | openai | tavily 等，后续接入真实 API 时在此读入对应 key
+SEARCH_PROVIDER = os.getenv("SEARCH_PROVIDER", "mock")
 # LLM / 搜索 API（按实际使用的服务后续补充）
 # OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+# PERPLEXITY_API_KEY = os.getenv("PERPLEXITY_API_KEY")
+DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY", "")
