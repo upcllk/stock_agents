@@ -52,6 +52,41 @@ createdb stock_agents
 psql -d stock_agents -f scripts/init_db.sql
 ```
 
+### 数据库用户名与密码
+
+**Homebrew / Postgres.app 默认（本机开发）：**
+
+- 默认使用**当前系统用户名**连接（如 `mika`），且本地配置为 **trust**，**不需要密码**。
+- 连接串示例：`postgresql://mika@localhost:5432/stock_agents`（把 `mika` 换成你的系统用户名）。
+
+**若希望设置专用数据库用户和密码：**
+
+```bash
+# 用默认方式连进 postgres
+psql -d postgres
+
+# 在 psql 里执行：
+CREATE USER stock_agent WITH PASSWORD '你的密码';
+CREATE DATABASE stock_agents OWNER stock_agent;
+\c stock_agents
+\i /Users/{{your_name}}/code/agents/stock_agents/scripts/init_db.sql
+\q
+```
+
+之后在 `.env` 或环境变量里配置：
+
+```bash
+DATABASE_URL=postgresql://stock_agent:你的密码@localhost:5432/stock_agents
+```
+
+**Docker 方式：** 创建容器时已通过 `-e POSTGRES_PASSWORD=dev` 设置密码，用户名为 `postgres`，连接串示例：
+
+```bash
+DATABASE_URL=postgresql://postgres:dev@localhost:5432/postgres
+```
+
+项目通过环境变量 `DATABASE_URL` 读连接串，可在项目根目录建 `.env` 并写入上述内容（不要提交到 git）。
+
 ### 快速检查脚本（可选）
 
 ```bash
