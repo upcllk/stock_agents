@@ -8,7 +8,7 @@ from langgraph.graph import END, START, StateGraph
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, SystemMessage
 
-from config.settings import SEARCH_PROVIDER, QWEN_MODEL
+from config.settings import NEWS_SEARCH_MAX_ITEMS, SEARCH_PROVIDER, QWEN_MODEL
 from app.services.search.base import NewsItem, SEARCH_SYSTEM_PROMPT
 from app.services.parse.base import PARSE_SYSTEM_PROMPT
 from app.schemas.news import NewsListSchema
@@ -82,7 +82,7 @@ def _parse_node(state: NewsSearchState, *, llm: ChatOpenAI) -> dict[str, Any]:
                     "url": item.url,
                     "summary": item.summary,
                 }
-                for item in validated.items
+                for item in validated.items[:NEWS_SEARCH_MAX_ITEMS]
             ]
         except Exception:
             raw_items: Any
@@ -95,7 +95,7 @@ def _parse_node(state: NewsSearchState, *, llm: ChatOpenAI) -> dict[str, Any]:
             if not isinstance(raw_items, list):
                 raw_items = []
             items = []
-            for raw in raw_items[:10]:
+            for raw in raw_items[:NEWS_SEARCH_MAX_ITEMS]:
                 if not isinstance(raw, dict):
                     continue
                 items.append({

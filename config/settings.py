@@ -16,6 +16,8 @@ DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://localhost:5432/stock_agen
 
 # 搜索服务：mock | perplexity | openai | tavily 等，后续接入真实 API 时在此读入对应 key
 SEARCH_PROVIDER = os.getenv("SEARCH_PROVIDER", "mock")
+
+NEWS_SEARCH_MAX_ITEMS = 3
 # LLM / 搜索 API（按实际使用的服务后续补充）
 # OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 # PERPLEXITY_API_KEY = os.getenv("PERPLEXITY_API_KEY")
