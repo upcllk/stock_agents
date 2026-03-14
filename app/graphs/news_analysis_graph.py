@@ -1,8 +1,8 @@
-"""LangGraph：新闻文本 → 分析节点（Qwen）→ 解析节点，产出 EventAnalysis。仅 Qwen，不落库、无 tools。"""
+"""LangGraph：新闻文本 → 分析节点（Qwen）→ 解析节点 → 保存节点，产出 EventAnalysis 并可选落库。"""
 from __future__ import annotations
 
 import logging
-from typing import Any, TypedDict
+from typing import Any, NotRequired, TypedDict
 
 from langgraph.graph import END, START, StateGraph
 from langchain_openai import ChatOpenAI
@@ -11,6 +11,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from config.settings import QWEN_MODEL
 from app.services.analysis.base import EventAnalysis, ANALYSIS_SYSTEM_PROMPT
 from app.schemas.analysis import EventAnalysisSchema
+from app.tools.save_event_analysis import save_event_analysis
 from app.utils.json_util import safe_json_loads
 
 
@@ -18,10 +19,11 @@ QWEN_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1"
 
 
 class NewsAnalysisState(TypedDict):
-    """图状态：新闻文本、LLM 原始输出、解析后的事件分析（dict）。"""
+    """图状态：新闻文本、LLM 原始输出、解析后的事件分析；可选 news_id（默认 -1 表示暂未实现，仍落库）。"""
     news_text: str
     raw_analysis_output: str
     event_analysis: dict | None
+    news_id: NotRequired[int]
 
 
 def _analysis_node(state: NewsAnalysisState, *, llm: ChatOpenAI) -> dict[str, Any]:
@@ -106,6 +108,20 @@ def _parse_node(state: NewsAnalysisState) -> dict[str, Any]:
         return {"event_analysis": None}
 
 
+def _save_node(state: NewsAnalysisState) -> dict[str, Any]:
+    """保存节点：若有 event_analysis，转为 EventAnalysisSchema 后调用 save_event_analysis 落库（news_id 默认 -1 也落库）。"""
+    ev = state.get("event_analysis")
+    if ev is None or not isinstance(ev, dict):
+        return {}
+    try:
+        schema = EventAnalysisSchema.model_validate(ev)
+        news_id = state.get("news_id", -1)
+        save_event_analysis(news_id, schema)
+    except Exception as e:
+        logging.getLogger(__name__).warning("保存节点 save_event_analysis 失败: %s", e)
+    return {}
+
+
 def _build_graph(api_key: str) -> StateGraph:
     """构建图。仅 Qwen：base_url、model 固定为 DashScope。"""
     llm = ChatOpenAI(
@@ -121,29 +137,38 @@ def _build_graph(api_key: str) -> StateGraph:
 
     builder.add_node("analysis", analysis_node)
     builder.add_node("parse", _parse_node)
+    builder.add_node("save", _save_node)
     builder.add_edge(START, "analysis")
     builder.add_edge("analysis", "parse")
-    builder.add_edge("parse", END)
+    builder.add_edge("parse", "save")
+    builder.add_edge("save", END)
     return builder
 
 
-def invoke_news_analysis(news_text: str, api_key: str | None = None) -> EventAnalysis | None:
+def invoke_news_analysis(
+    news_text: str,
+    api_key: str | None = None,
+    news_id: int | None = None,
+) -> EventAnalysis | None:
     """
     执行新闻分析图，返回 EventAnalysis。
     api_key 为空或 news_text 为空时返回 None。
+    news_id 不传时用 -1（暂未实现，仍落库）；传入则写入该 news_id。
     """
     if not (api_key or "").strip():
         return None
     news_text = (news_text or "").strip()
     if not news_text:
         return None
+    initial: dict[str, Any] = {
+        "news_text": news_text,
+        "raw_analysis_output": "",
+        "event_analysis": None,
+        "news_id": news_id if news_id is not None else -1,
+    }
     try:
         graph = _build_graph(api_key=api_key).compile()
-        result = graph.invoke({
-            "news_text": news_text,
-            "raw_analysis_output": "",
-            "event_analysis": None,
-        })
+        result = graph.invoke(initial)
     except Exception as e:
         logging.getLogger(__name__).warning("invoke_news_analysis 图执行失败: %s", e)
         return None

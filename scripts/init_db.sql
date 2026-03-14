@@ -32,10 +32,10 @@ CREATE TABLE IF NOT EXISTS news_event (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- 表3：事件分析表
+-- 表3：事件分析表（news_id 逻辑上关联 news_event.id，未建 FK 便于暂存 news_id=-1 等）
 CREATE TABLE IF NOT EXISTS event_analysis (
     id SERIAL PRIMARY KEY,
-    news_id INT REFERENCES news_event(id),
+    news_id INT,
     event_type VARCHAR(50),
     impact_direction VARCHAR(20),
     impact_strength INT,
