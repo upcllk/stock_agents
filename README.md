@@ -96,22 +96,51 @@ python3 --version && pip3 --version
 command -v psql >/dev/null && psql --version && pg_isready -h localhost || echo "PostgreSQL 未安装或未启动"
 ```
 
-### 安装与启动
+### 一键安装 Python 依赖
+
+在项目根目录执行（建议先激活虚拟环境）：
 
 ```bash
-# 1. 创建虚拟环境（推荐）
-python3 -m venv .venv && source .venv/bin/activate  # Windows: .venv\Scripts\activate
+pip install -r requirements.txt
+```
 
-# 2. 安装依赖
+会安装：`psycopg2-binary`（PostgreSQL）、`APScheduler`（定时任务）、`python-dotenv`（配置）。LLM 相关依赖在 `requirements.txt` 中已注释，按需取消注释后再次执行上述命令。
+
+### 安装与启动（完整步骤）
+
+```bash
+# 1. 进入项目根目录
+cd /path/to/stock_agents
+
+# 2. 创建并激活虚拟环境（推荐）
+python3 -m venv .venv
+source .venv/bin/activate   # Windows: .venv\Scripts\activate
+
+# 3. 一键安装依赖
 pip install -r requirements.txt
 
-# 3. 安装并启动 PostgreSQL，创建数据库并执行 scripts/init_db.sql（见上方「本地安装 PostgreSQL」）
+# 4. 安装并启动 PostgreSQL，创建数据库并执行建表（见上方「本地安装 PostgreSQL」）
+createdb stock_agents
+psql -d stock_agents -f scripts/init_db.sql
 
-# 4. 配置 config/settings.py 或 .env（数据库 URL、LLM API 等）
+# 5. 配置 .env（复制 .env.example 为 .env，填写 DATABASE_URL 等）
+cp .env.example .env
+# 编辑 .env，设置 DATABASE_URL=postgresql://你的用户名@localhost:5432/stock_agents
 
-# 5. 运行
+# 6. 运行
 python main.py
 ```
+
+### 验证数据库连接
+
+在项目根目录、已激活虚拟环境且配置好 `.env` 中的 `DATABASE_URL` 后，执行：
+
+```bash
+python scripts/check_db.py
+```
+
+- **成功**：会打印「成功连接 PostgreSQL」、版本号以及当前库中的表（若已执行过 `init_db.sql` 会看到 `company_watchlist`、`news_event` 等）。
+- **失败**：会打印「连接失败」和具体报错（如密码错误、数据库不存在、服务未启动等），根据提示检查 `.env` 和 PostgreSQL 状态即可。
 
 ---
 

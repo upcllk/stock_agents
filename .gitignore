@@ -3,3 +3,6 @@
 .cursor
 .venv
 .env
+
+# Python
+__pycache__/
