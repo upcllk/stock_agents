@@ -1,10 +1,52 @@
 """
-PostgreSQL 连接。使用 config.settings 中的 DATABASE_URL。
+PostgreSQL 连接与会话。使用 config.settings 中的 DATABASE_URL。
+- get_connection / get_cursor：原始 psycopg2 连接（兼容旧用法）。
+- engine / get_session：SQLAlchemy 引擎与会话，供 repository 层 CRUD 使用。
 """
 import psycopg2
 from psycopg2.extras import RealDictCursor
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 
 from config.settings import DATABASE_URL
+
+# SQLAlchemy 引擎与会话工厂（供 app.db.repository 使用）
+engine = create_engine(
+    DATABASE_URL,
+    pool_pre_ping=True,
+    echo=False,
+)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+
+class _SessionContext:
+    """Session 上下文：退出时 commit（成功）或 rollback（异常）并关闭。"""
+
+    def __init__(self) -> None:
+        self._session = SessionLocal()
+
+    def __enter__(self):
+        return self._session
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if exc_type is None:
+            self._session.commit()
+        else:
+            self._session.rollback()
+        self._session.close()
+        return False
+
+
+def get_session():
+    """
+    返回一个 SQLAlchemy Session 上下文管理器。退出时自动 commit/rollback 并关闭。
+
+    用法:
+        with get_session() as session:
+            repo = CompanyWatchlistRepository(session)
+            companies = repo.list_enabled()
+    """
+    return _SessionContext()
 
 
 def get_connection():

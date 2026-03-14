@@ -1,5 +1,6 @@
 # 数据库
 psycopg2-binary>=2.9.9
+SQLAlchemy>=2.0.0
 
 # 定时任务
 APScheduler>=3.10.0

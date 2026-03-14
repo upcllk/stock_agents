@@ -1,7 +1,8 @@
-"""存储服务 PostgreSQL 实现。"""
+"""存储服务 PostgreSQL 实现。通过 app.db.repository 进行 CRUD，不直接写 SQL。"""
 import hashlib
 
-from app.db.database import get_connection
+from app.db.database import get_session
+from app.db.repository import EventAnalysisRepository, NewsEventRepository, NewsHashRepository
 from app.services.analysis.base import EventAnalysis
 from app.services.search.base import NewsItem
 
@@ -15,53 +16,36 @@ class PostgresStorageService:
 
     def save_news(self, ticker: str, news: NewsItem) -> int:
         content_hash = _hash_news(news.title, news.source)
-        with get_connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    """
-                    INSERT INTO news_event (ticker, title, source, url, publish_time, raw_summary)
-                    VALUES (%s, %s, %s, %s, %s, %s)
-                    RETURNING id
-                    """,
-                    (
-                        ticker,
-                        news.title,
-                        news.source,
-                        news.url,
-                        news.date if news.date else None,
-                        news.summary,
-                    ),
-                )
-                row = cur.fetchone()
-                news_id = row[0]
-                cur.execute(
-                    "INSERT INTO news_hash (hash) VALUES (%s) ON CONFLICT (hash) DO NOTHING",
-                    (content_hash,),
-                )
-                return news_id
+        with get_session() as session:
+            news_repo = NewsEventRepository(session)
+            hash_repo = NewsHashRepository(session)
+            row = news_repo.create(
+                ticker=ticker,
+                title=news.title,
+                source=news.source,
+                url=news.url,
+                publish_time=None,  # 可选：从 news.date 解析为 datetime
+                raw_summary=news.summary,
+            )
+            news_id = row.id
+            hash_repo.create_if_not_exists(content_hash)
+        return news_id
 
     def save_analysis(self, news_id: int, analysis: EventAnalysis) -> None:
-        with get_connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    """
-                    INSERT INTO event_analysis (news_id, event_type, impact_direction, impact_strength, impact_horizon, confidence, reasoning)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s)
-                    """,
-                    (
-                        news_id,
-                        analysis.event_type,
-                        analysis.impact_direction,
-                        analysis.impact_strength,
-                        analysis.impact_horizon,
-                        analysis.confidence,
-                        analysis.reasoning,
-                    ),
-                )
+        with get_session() as session:
+            analysis_repo = EventAnalysisRepository(session)
+            analysis_repo.create(
+                news_id=news_id,
+                event_type=analysis.event_type,
+                impact_direction=analysis.impact_direction,
+                impact_strength=analysis.impact_strength,
+                impact_horizon=analysis.impact_horizon,
+                confidence=analysis.confidence,
+                reasoning=analysis.reasoning,
+            )
 
     def exists_by_hash(self, content_hash: str) -> bool:
-        with get_connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute("SELECT 1 FROM news_hash WHERE hash = %s", (content_hash,))
-                return cur.fetchone() is not None
+        with get_session() as session:
+            hash_repo = NewsHashRepository(session)
+            return hash_repo.exists(content_hash)
 

@@ -104,7 +104,7 @@ command -v psql >/dev/null && psql --version && pg_isready -h localhost || echo 
 pip install -r requirements.txt
 ```
 
-会安装：`psycopg2-binary`（PostgreSQL）、`APScheduler`（定时任务）、`python-dotenv`（配置）、`openai`（LLM 调用）、`pydantic`（数据验证）、`langgraph` 与 `langchain-openai`（搜索→解析图，DeepSeek 路径使用）。
+会安装：`psycopg2-binary`（PostgreSQL）、`SQLAlchemy`（ORM，与 `init_db.sql` 表结构对应的实体与 CRUD）、`APScheduler`（定时任务）、`python-dotenv`（配置）、`openai`（LLM 调用）、`pydantic`（数据验证）、`langgraph` 与 `langchain-openai`（搜索→解析图，DeepSeek 路径使用）。
 
 ### 安装与启动（完整步骤）
 
@@ -171,8 +171,10 @@ stock_agents/
 │   │   └── report/         # 报告：base、mock
 │   │       ├── base.py     # ReportService 协议
 │   │       └── mock.py     # MockReportService
-│   ├── db/                 # 数据访问层
-│   │   └── database.py     # PostgreSQL 连接与会话管理
+│   ├── db/                 # 数据访问层（ORM：SQLAlchemy）
+│   │   ├── models.py       # 实体：CompanyWatchlist、NewsEvent、EventAnalysis、NewsHash（与 init_db.sql 一致）
+│   │   ├── database.py     # 连接（psycopg2）与会话（SQLAlchemy engine/Session）
+│   │   └── repository.py   # CRUD：CompanyWatchlistRepository、NewsEventRepository、EventAnalysisRepository、NewsHashRepository
 │   ├── scheduler/          # 定时任务（规划）
 │   │   └── job_runner.py   # APScheduler 配置与调度
 │   └── utils/              # 通用工具
@@ -202,7 +204,7 @@ stock_agents/
 | **app/services/analysis/** | 新闻 → 事件结构化分析（event_type、impact_direction 等）。实现：mock |
 | **app/services/storage/** | 新闻与事件分析落库、基于 hash 去重。实现：mock、postgres（默认） |
 | **app/services/report/** | 按日/按公司生成动态报告。实现：mock |
-| **app/db/** | 数据库连接，与 `init_db.sql` 一致 |
+| **app/db/** | 数据访问层：`models.py` 定义四张表实体（SQLAlchemy ORM），`database.py` 提供连接与会话，`repository.py` 对表做 CRUD；业务层通过 repository 访问数据库，与 `init_db.sql` 表结构一致 |
 | **app/scheduler/** | 定时触发抓取与报告任务 |
 | **app/utils/** | hash、日志等通用工具 |
 | **config/** | 环境与运行配置（含 SEARCH_PROVIDER、STORAGE_PROVIDER 等） |
