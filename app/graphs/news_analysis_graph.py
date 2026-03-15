@@ -168,7 +168,12 @@ def invoke_news_analysis(
     }
     try:
         graph = _build_graph(api_key=api_key).compile()
-        result = graph.invoke(initial)
+        # run_name/tags 供 LangSmith 区分 trace（需设置 LANGSMITH_TRACING=true 与 LANGSMITH_API_KEY）
+        config: dict[str, Any] = {
+            "run_name": "News Analysis",
+            "tags": ["news_analysis", f"news_id:{initial.get('news_id', -1)}"],
+        }
+        result = graph.invoke(initial, config=config)
     except Exception as e:
         logging.getLogger(__name__).warning("invoke_news_analysis 图执行失败: %s", e)
         return None

@@ -224,3 +224,20 @@ python scripts/check_search.py
 - **失败**：打印调用失败原因。未配置真实 API 时使用 `SEARCH_PROVIDER=mock`（默认）即可。使用 DeepSeek 时需设置 `SEARCH_PROVIDER=deepseek` 和 `DEEPSEEK_API_KEY`；使用通义千问时需设置 `SEARCH_PROVIDER=qwen` 和 `DASHSCOPE_API_KEY`（可选 `QWEN_MODEL`）。
 
 更细的流程与表结构、Prompt 设计见 [plans/agent1.md](plans/agent1.md)。
+
+### 可观测性（LangSmith，可选）
+
+使用 [LangSmith](https://smith.langchain.com) 可以监控 LangGraph 的执行流程：每次 `news_search` / `news_analysis` 的调用会录成一条 trace，在控制台可查看各节点（搜索、解析、保存）的输入输出、LLM 调用与耗时。
+
+**步骤：**
+
+1. 在 [smith.langchain.com](https://smith.langchain.com) 注册并创建 API Key。
+2. 在 `.env` 中增加（或取消注释）：
+   ```bash
+   LANGSMITH_TRACING=true
+   LANGSMITH_API_KEY=你的 API Key
+   # 可选：指定项目名，便于在 LangSmith 里按项目筛选
+   LANGSMITH_PROJECT=stock_agents
+   ```
+3. 安装依赖中已包含 `langsmith`；无需改代码，图在执行时会自动上报 trace。
+4. 运行 `main.py` 或执行搜索/分析后，在 LangSmith 控制台即可看到名为「News Search」「News Analysis」的 trace，以及 `company`、`ticker`、`news_id` 等标签，便于筛选和排查。

@@ -18,3 +18,6 @@ pydantic>=2.0.0
 # LangGraph（搜索→解析图）
 langgraph>=0.2.0
 langchain-openai>=0.2.0
+
+# 可观测性（可选：LangSmith 监控 agent 执行）
+langsmith>=0.1.0

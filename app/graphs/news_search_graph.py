@@ -202,7 +202,12 @@ def invoke_news_search(
         initial["ticker"] = ticker.strip()
     try:
         graph = _build_graph(api_key=api_key).compile()
-        result = graph.invoke(initial)
+        # run_name/tags 供 LangSmith 区分 trace（需设置 LANGSMITH_TRACING=true 与 LANGSMITH_API_KEY）
+        tags: list[str] = ["news_search", f"company:{company}"]
+        if ticker:
+            tags.append(f"ticker:{ticker}")
+        config: dict[str, Any] = {"run_name": "News Search", "tags": tags}
+        result = graph.invoke(initial, config=config)
     except Exception as e:
         logging.getLogger(__name__).warning("invoke_news_search 图执行失败: %s", e)
         return []
