@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+from datetime import datetime
 from typing import Any, NotRequired, TypedDict
 
 from langgraph.graph import END, START, StateGraph
@@ -9,7 +10,7 @@ from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from config.settings import NEWS_SEARCH_MAX_ITEMS, SEARCH_PROVIDER, QWEN_MODEL
-from app.services.search.base import NewsItem, SEARCH_SYSTEM_PROMPT
+from app.services.search.base import NewsItem, SEARCH_SYSTEM_PROMPT_TEMPLATE
 from app.services.parse.base import PARSE_SYSTEM_PROMPT
 from app.schemas.news import NewsItemSchema, NewsListSchema
 from app.tools.batch_save_news import batch_save_news
@@ -38,14 +39,16 @@ class NewsSearchState(TypedDict):
 
 
 def _search_node(state: NewsSearchState, *, llm: ChatOpenAI) -> dict[str, Any]:
-    """搜索节点：仅产出 raw 文本。"""
+    """搜索节点：仅产出 raw 文本。注入当前日期到 system prompt，避免模型返回往年旧闻。"""
     company = (state.get("company") or "").strip()
     if not company:
         return {"raw_search_output": ""}
+    current_date = datetime.now().strftime("%Y年%m月%d日")
+    system_prompt = SEARCH_SYSTEM_PROMPT_TEMPLATE.format(current_date=current_date)
     try:
         resp = llm.invoke(
             [
-                SystemMessage(content=SEARCH_SYSTEM_PROMPT),
+                SystemMessage(content=system_prompt),
                 HumanMessage(content=company),
             ]
         )
@@ -249,7 +252,7 @@ if __name__ == "__main__":
         print("请设置 DASHSCOPE_API_KEY 环境变量")
         exit(1)
 
-    company = "Tesla"
+    company = "蔚来汽车"
     print(f"测试搜索公司: {company}")
     print("-" * 50)
 
