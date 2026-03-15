@@ -2,7 +2,7 @@
 数据访问层：对表进行 CRUD，直接使用 SQLAlchemy Session 与 app.db.models 实体。
 业务层（如 StorageService）应通过本层访问数据库，避免手写 SQL。
 """
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional
 
 from sqlalchemy import select
@@ -95,6 +95,17 @@ class NewsEventRepository:
         stmt = select(NewsEvent.id).where(NewsEvent.url == url.strip()).limit(1)
         return self._session.scalar(stmt) is not None
 
+    def list_simhashes_for_ticker(self, ticker: str, days: int = 30) -> list[int]:
+        """近重复去重用：返回该 ticker 最近 days 天内已落库新闻的 simhash 列表（仅非空）。"""
+        if not (ticker or "").strip():
+            return []
+        since = datetime.utcnow() - timedelta(days=days)
+        stmt = (
+            select(NewsEvent.simhash)
+            .where(NewsEvent.ticker == ticker.strip(), NewsEvent.created_at >= since, NewsEvent.simhash.isnot(None))
+        )
+        return [r for r in self._session.scalars(stmt).all() if r is not None]
+
     def create(
         self,
         *,
@@ -104,6 +115,7 @@ class NewsEventRepository:
         url: Optional[str] = None,
         publish_time: Optional[datetime] = None,
         raw_summary: Optional[str] = None,
+        simhash: Optional[int] = None,
     ) -> NewsEvent:
         """插入一条新闻，返回实体（含 id）。"""
         row = NewsEvent(
@@ -113,6 +125,7 @@ class NewsEventRepository:
             url=url,
             publish_time=publish_time,
             raw_summary=raw_summary,
+            simhash=simhash,
         )
         self._session.add(row)
         self._session.flush()
@@ -128,6 +141,7 @@ class NewsEventRepository:
         url: Optional[str] = None,
         publish_time: Optional[datetime] = None,
         raw_summary: Optional[str] = None,
+        simhash: Optional[int] = None,
     ) -> Optional[NewsEvent]:
         """按主键更新。"""
         row = self._session.get(NewsEvent, id)
@@ -145,6 +159,8 @@ class NewsEventRepository:
             row.publish_time = publish_time
         if raw_summary is not None:
             row.raw_summary = raw_summary
+        if simhash is not None:
+            row.simhash = simhash
         self._session.flush()
         return row
 

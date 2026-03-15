@@ -16,6 +16,7 @@ from app.db.repository import EventAnalysisRepository, NewsEventRepository, News
 from app.schemas.analysis import EventAnalysisSchema
 from app.schemas.news import NewsListSchema
 from app.utils.hash_util import title_source_hash
+from app.utils.simhash_util import simhash64, simhash64_to_db
 
 
 def _parse_publish_time(date_str: str) -> Optional[datetime]:
@@ -68,6 +69,7 @@ def batch_save_news(
 
         for i, item in enumerate(items):
             publish_time = _parse_publish_time(item.date)
+            simhash_val = simhash64_to_db(simhash64(f"{item.title or ''} {item.summary or ''}".strip()))
             row = news_repo.create(
                 ticker=ticker,
                 title=item.title,
@@ -75,6 +77,7 @@ def batch_save_news(
                 url=item.url or None,
                 publish_time=publish_time,
                 raw_summary=item.summary or None,
+                simhash=simhash_val,
             )
             inserted_news_ids.append(row.id)
             # 写入 news_hash 供后续精确去重（title+source）

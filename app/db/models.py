@@ -5,7 +5,7 @@
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import BigInteger, Boolean, DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -40,6 +40,7 @@ class NewsEvent(Base):
     url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     publish_time: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     raw_summary: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    simhash: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     analyses: Mapped[list["EventAnalysis"]] = relationship(

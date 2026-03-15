@@ -1,59 +1,45 @@
-"""去重服务 PostgreSQL 实现：精确去重（url + title+source hash），后续可在此组合近重复（SimHash）。"""
+"""对外暴露的去重服务：组合精确去重 + SimHash 近重复。"""
 from __future__ import annotations
 
 import logging
-from typing import Any
+import os
+from pathlib import Path
 
 from app.db.database import get_session
 from app.db.repository import NewsEventRepository, NewsHashRepository
+from app.services.dedup.exact import ExactDedupService
+from app.services.dedup.simhash_dedup import SimHashDedupService
 from app.utils.hash_util import title_source_hash
-
-
-def _as_str(v: Any) -> str:
-    if v is None:
-        return ""
-    if isinstance(v, str):
-        return v
-    return str(v)
+from app.utils.simhash_util import simhash64, simhash64_to_db
 
 
 class PostgresDedupService:
     """
-    使用 news_event、news_hash 做精确去重。
-    规则：1) url 已存在则剔除；2) sha256(normalized_title+source) 已存在则剔除。
-    后续可在此类内增加近重复（SimHash）逻辑，与精确去重组合。
+    对外去重类：先精确去重，再 SimHash 近重复。
+    组合 ExactDedupService 与 SimHashDedupService。
     """
 
-    def filter_duplicates(self, items: list[dict]) -> list[dict]:
+    def __init__(
+        self,
+        exact_dedup: ExactDedupService | None = None,
+        simhash_dedup: SimHashDedupService | None = None,
+    ) -> None:
+        self._exact = exact_dedup or ExactDedupService()
+        self._simhash = simhash_dedup or SimHashDedupService()
+
+    def filter_duplicates(self, items: list[dict], ticker: str | None = None) -> list[dict]:
         if not items:
             return []
-        kept: list[dict] = []
         try:
-            with get_session() as session:
-                news_repo = NewsEventRepository(session)
-                hash_repo = NewsHashRepository(session)
-                for d in items:
-                    if not isinstance(d, dict):
-                        continue
-                    title = _as_str(d.get("title", ""))
-                    source = _as_str(d.get("source", ""))
-                    url = _as_str(d.get("url", ""))
-                    if url and news_repo.exists_by_url(url):
-                        continue
-                    content_hash = title_source_hash(title, source)
-                    if hash_repo.exists(content_hash):
-                        continue
-                    kept.append(d)
+            after_exact = self._exact.filter(items)
+            return self._simhash.filter(after_exact, ticker=ticker)
         except Exception as e:
             logging.getLogger(__name__).warning("PostgresDedupService.filter_duplicates 异常: %s", e)
             return list(items)
-        return kept
 
 
 if __name__ == "__main__":
     """测试重复：插入测试数据 → 跑去重 → 断言 → 删除测试数据，保证每次运行结果一致。"""
-    import os
-    from pathlib import Path
     from dotenv import load_dotenv
 
     load_dotenv(Path(__file__).resolve().parent.parent.parent / ".env")
@@ -67,8 +53,11 @@ if __name__ == "__main__":
     dup_hash = title_source_hash(dup_title, dup_source)
     inserted_news_id: int | None = None
 
+    dup_summary = "摘要"
+    dup_simhash = simhash64_to_db(simhash64(f"{dup_title} {dup_summary}".strip()))
+
     try:
-        # 1) 插入本次测试用的“已存在”新闻与 hash
+        # 1) 插入本次测试用的“已存在”新闻与 hash（含 simhash 供近重复测试）
         with get_session() as session:
             news_repo = NewsEventRepository(session)
             hash_repo = NewsHashRepository(session)
@@ -78,23 +67,25 @@ if __name__ == "__main__":
                 source=dup_source,
                 url=dup_url,
                 publish_time=None,
-                raw_summary="摘要",
+                raw_summary=dup_summary,
+                simhash=dup_simhash,
             )
             inserted_news_id = row.id
             hash_repo.create_if_not_exists(dup_hash)
-        print(f"已插入测试数据: news_id={inserted_news_id}, url={dup_url!r}")
+        print(f"已插入测试数据: news_id={inserted_news_id}, url={dup_url!r}, simhash={dup_simhash}")
 
-        # 2) 构造输入：两条与库中重复（同 url / 同 title+source），一条全新
+        # 2) 构造输入：两条精确重复（同 url / 同 title+source）、一条仅 SimHash 近重复（同 title+summary 不同 source+url）、一条全新
         items = [
-            {"title": dup_title, "source": dup_source, "url": dup_url, "date": "", "summary": ""},
-            {"title": dup_title, "source": dup_source, "url": "https://other.com/same-title-source", "date": "", "summary": ""},
+            {"title": dup_title, "source": dup_source, "url": dup_url, "date": "", "summary": dup_summary},
+            {"title": dup_title, "source": dup_source, "url": "https://other.com/same-title-source", "date": "", "summary": dup_summary},
+            {"title": dup_title, "source": "OtherSource", "url": "https://other.com/near-dup", "date": "", "summary": dup_summary},
             {"title": "Apple 发布新机", "source": "Bloomberg", "url": "https://example.com/apple-1", "date": "", "summary": ""},
         ]
         print(f"输入 {len(items)} 条，期望去重后剩 1 条（仅 Apple）")
 
-        # 3) 去重
+        # 3) 去重（传 ticker 以启用 SimHash 近重复）
         service = PostgresDedupService()
-        kept = service.filter_duplicates(items)
+        kept = service.filter_duplicates(items, ticker="TSLA")
         print(f"去重后剩余 {len(kept)} 条:")
         for i, d in enumerate(kept, 1):
             print(f"  {i}. {d.get('title')!r} | {d.get('source')!r} | {d.get('url')!r}")

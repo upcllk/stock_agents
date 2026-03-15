@@ -127,7 +127,8 @@ def _dedup_node(state: NewsSearchState) -> dict[str, Any]:
     items = state.get("news_items") or []
     if not items:
         return {}
-    kept = get_dedup_service().filter_duplicates(items)
+    ticker = (state.get("ticker") or "").strip() or None
+    kept = get_dedup_service().filter_duplicates(items, ticker=ticker)
     return {"news_items": kept}
 
 

@@ -8,10 +8,11 @@ from typing import Protocol, runtime_checkable
 class DedupService(Protocol):
     """去重服务协议：对新闻列表做精确/近重复去重，返回未重复项。"""
 
-    def filter_duplicates(self, items: list[dict]) -> list[dict]:
+    def filter_duplicates(self, items: list[dict], ticker: str | None = None) -> list[dict]:
         """
         按配置组合去重规则（先精确、后近重复），过滤掉重复项。
         items 每项为 dict，含 title / source / url / date / summary。
+        ticker 不为空时参与近重复（SimHash）比较。
         返回通过去重的子列表。
         """
         ...
