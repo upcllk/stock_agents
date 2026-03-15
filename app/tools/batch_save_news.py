@@ -12,9 +12,10 @@ from langchain_core.tools import tool
 from pydantic import BaseModel, Field
 
 from app.db.database import get_session
-from app.db.repository import EventAnalysisRepository, NewsEventRepository
+from app.db.repository import EventAnalysisRepository, NewsEventRepository, NewsHashRepository
 from app.schemas.analysis import EventAnalysisSchema
 from app.schemas.news import NewsListSchema
+from app.utils.hash_util import title_source_hash
 
 
 def _parse_publish_time(date_str: str) -> Optional[datetime]:
@@ -63,6 +64,7 @@ def batch_save_news(
     with get_session() as session:
         news_repo = NewsEventRepository(session)
         analysis_repo = EventAnalysisRepository(session)
+        hash_repo = NewsHashRepository(session)
 
         for i, item in enumerate(items):
             publish_time = _parse_publish_time(item.date)
@@ -75,6 +77,9 @@ def batch_save_news(
                 raw_summary=item.summary or None,
             )
             inserted_news_ids.append(row.id)
+            # 写入 news_hash 供后续精确去重（title+source）
+            content_hash = title_source_hash(item.title or "", item.source or "")
+            hash_repo.create_if_not_exists(content_hash)
 
             if analyses is not None and i < len(analyses):
                 a = analyses[i]

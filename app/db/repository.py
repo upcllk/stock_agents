@@ -88,6 +88,13 @@ class NewsEventRepository:
         """按主键查询。"""
         return self._session.get(NewsEvent, id)
 
+    def exists_by_url(self, url: str) -> bool:
+        """精确去重用：判断该 url 是否已在 news_event 中存在。url 为空则返回 False。"""
+        if not (url or "").strip():
+            return False
+        stmt = select(NewsEvent.id).where(NewsEvent.url == url.strip()).limit(1)
+        return self._session.scalar(stmt) is not None
+
     def create(
         self,
         *,
@@ -217,4 +224,12 @@ class NewsHashRepository:
         if self.exists(content_hash):
             return False
         self.create(content_hash)
+        return True
+
+    def delete(self, content_hash: str) -> bool:
+        """按 hash 主键删除，返回是否删除了记录。"""
+        row = self._session.get(NewsHash, content_hash)
+        if row is None:
+            return False
+        self._session.delete(row)
         return True

@@ -65,7 +65,7 @@ class DeepSeekParseService:
         if isinstance(data, list):
             raw_items = data
         elif isinstance(data, dict):
-            # 兼容 items / news / data 等常见键名，避免 KeyError
+        # 兼容 items / news / data 等常见键名，避免 KeyError
             raw_items = data.get("items") or data.get("news") or data.get("data") or []
         else:
             raw_items = []

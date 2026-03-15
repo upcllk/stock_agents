@@ -17,6 +17,10 @@ from app.services.storage import (
     StorageService,
     get_storage_service,
 )
+from app.services.dedup import (
+    DedupService,
+    get_dedup_service,
+)
 from app.services.report import (
     ReportService,
     get_report_service,
@@ -33,6 +37,8 @@ __all__ = [
     "get_analysis_service",
     "StorageService",
     "get_storage_service",
+    "DedupService",
+    "get_dedup_service",
     "ReportService",
     "get_report_service",
 ]

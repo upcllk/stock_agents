@@ -1,4 +1,4 @@
-"""LangGraph：搜索节点 → 解析节点，状态驱动。"""
+"""LangGraph：搜索节点 → 解析节点 → 去重节点 → 保存节点，状态驱动。"""
 from __future__ import annotations
 
 import logging
@@ -14,6 +14,7 @@ from app.services.parse.base import PARSE_SYSTEM_PROMPT
 from app.schemas.news import NewsItemSchema, NewsListSchema
 from app.tools.batch_save_news import batch_save_news
 from app.utils.json_util import safe_json_loads
+from app.services.dedup import get_dedup_service
 
 # 一个 provider 对应一套 base_url + model
 LLM_PROVIDER_CONFIG: dict[str, dict[str, str]] = {
@@ -121,6 +122,15 @@ def _as_str(v: Any) -> str:
     return str(v)
 
 
+def _dedup_node(state: NewsSearchState) -> dict[str, Any]:
+    """去重节点：在 parse 之后、save 之前执行，委托 DedupService 做精确/近重复去重。"""
+    items = state.get("news_items") or []
+    if not items:
+        return {}
+    kept = get_dedup_service().filter_duplicates(items)
+    return {"news_items": kept}
+
+
 def _save_node(state: NewsSearchState) -> dict[str, Any]:
     """保存节点：若有 ticker 且 news_items 非空，将 news_items 转成 NewsListSchema 后调用 batch_save_news 落库。"""
     ticker = (state.get("ticker") or "PLACEHOLDER").strip()
@@ -170,10 +180,12 @@ def _build_graph(api_key: str) -> StateGraph:
 
     builder.add_node("search", search_node)
     builder.add_node("parse", parse_node)
+    builder.add_node("dedup", _dedup_node)
     builder.add_node("save", _save_node)
     builder.add_edge(START, "search")
     builder.add_edge("search", "parse")
-    builder.add_edge("parse", "save")
+    builder.add_edge("parse", "dedup")
+    builder.add_edge("dedup", "save")
     builder.add_edge("save", END)
     return builder
 
